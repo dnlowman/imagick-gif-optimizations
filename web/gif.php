@@ -240,6 +240,7 @@ function createOutputImage($output_width, $output_height, $output_padded_colour,
     $output_image->setImageFormat('gif');
     $output_image->setImageDelay($frame->getImageDelay());
 
+
     return $output_image;
 }
 
