@@ -205,6 +205,15 @@ foreach ($image as $frame) {
         $th = $metrics['textHeight'];
     }
 
+    $GIF->addImage(createOutputImage($output_width, $output_height, $output_padded_colour, $image, $x, $y, $output_image_height, $th, $draw,
+    $title_font_color, $title_font_size, $title, $output_image_width, $price_font_color, $price_font_size, $price_formatted, $frame));
+
+    $first_iteration = false;
+}
+
+function createOutputImage($output_width, $output_height, $output_padded_colour, $image, $x, $y, $output_image_height, $th, $draw,
+    $title_font_color, $title_font_size, $title, $output_image_width, $price_font_color, $price_font_size, $price_formatted, $frame){
+
     $output_image = new Imagick();
     $output_image->newImage( $output_width, $output_height, new ImagickPixel(fix_hex_color($output_padded_colour)));
 
@@ -230,9 +239,8 @@ foreach ($image as $frame) {
 
     $output_image->setImageFormat('gif');
     $output_image->setImageDelay($frame->getImageDelay());
-    $GIF->addImage($output_image);
 
-    $first_iteration = false;
+    return $output_image;
 }
 
 /* Set format to png */
