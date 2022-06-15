@@ -156,15 +156,7 @@ elseif ($price){
     }
 }
 
-$output_image_width = floor($output_width*0.9);
-
-$output_image_title_height = floor($output_height*(1-$image_to_label_ratio));
-$output_image_title_height = min($output_image_title_height, 70*$image_rescale);
-
-$output_image_height = $output_height-$output_image_title_height;
-
 $image = new Imagick();
-$image->setBackgroundColor(new ImagickPixel(fix_hex_color($output_padded_colour)));
 
 //$Imagick->setResourceLimit(imagick::RESOURCETYPE_MEMORY, 8192);
 //$Imagick->setResourceLimit(imagick::RESOURCETYPE_MAP, 256);
@@ -183,74 +175,72 @@ $font_file = @$FONTS[$font];
 $draw = new ImagickDraw();
 $draw->setFont($font_file);
 $draw->setTextEncoding('UTF-8');
-$draw->setFont($font_file);
 $draw->setTextAlignment(\Imagick::ALIGN_CENTER);
 
-$actual_height = $image->getImageHeight();
-$actual_width = $image->getImageWidth();
-$output_image_height = $output_height - $output_image_title_height;
-$x = floor(($output_width - $actual_width) / 2);
-$y = floor(($output_image_height - $actual_height) / 2);
-$metrics = $image->queryFontMetrics($draw, $title);
-$th = $metrics['textHeight'];
-$xpos = round($output_width / 2);
-$ypos = round($output_image_height + $th );//+$title_font_size-15);//+5);
-
 $image->optimizeImageLayers();
-$first_iteration=true;
-$default_ypos_increment=5;
-if (intval($price_font_size) > intval($title_font_size) + 5) $default_ypos_increment = $title_font_size + $default_ypos_increment;
-$init_value=0;
+
+$output_image_width = floor($output_width*0.9);
+
+$output_image_title_height = floor($output_height*(1-$image_to_label_ratio));
+$output_image_title_height = min($output_image_title_height, 70*$image_rescale);
+
+$output_image_height = $output_height - $output_image_title_height; //$actual_height;
+
+$first_iteration = true;
+$x = 0;
+$y = 0;
+$metrics;
+$th;
+
+$GIF = new Imagick();
 
 foreach ($image as $frame) {
+
     $frame->resizeImage($output_image_width, $output_image_height,  Imagick::FILTER_LANCZOS, $resize_shapness, true);
 
     if ($first_iteration) {
-        $actual_height = $frame->getImageHeight();
-        $actual_width = $frame->getImageWidth();
-        $output_image_height = $output_height - $output_image_title_height;
+        $x = floor(($output_width - $frame->getImageWidth()) / 2);
+        $y = floor(($output_image_height - $frame->getImageHeight()) / 2);
         $metrics = $frame->queryFontMetrics($draw, $title);
         $th = $metrics['textHeight'];
-        $xpos = round($output_width / 2);
-        $ypos = round($output_image_height + $th );
-    } else {
-        $ypos = $init_value;
     }
 
-    //debug_to_console('Init Y Value='.$init_value);
+    $output_image = new Imagick();
+    $output_image->newImage( $output_width, $output_height, new ImagickPixel(fix_hex_color($output_padded_colour)));
+
+    $output_image->compositeImage(
+            $image, Imagick::COMPOSITE_DEFAULT,
+            $x,
+            $y
+        );
+
+    $xpos = round($output_width / 2);
+    $ypos = round($output_image_height + $th );
 
     $draw->setFillColor(fix_hex_color($title_font_color));
     $draw->setFontSize($title_font_size);
 
-    $init_value=imagick_text($image, $draw, $title, 2, $output_image_width, $xpos, $ypos);
-
-    //debug_to_console('Second Image y='.$init_value + 5);
-
+    $ypos += imagick_text($output_image, $draw, $title, 2, $output_image_width, $xpos, $ypos);
+    $ypos += 5;
 
     $draw->setFillColor(fix_hex_color($price_font_color));
     $draw->setFontSize($price_font_size);
 
-    imagick_text($image, $draw, $price_formatted, 1, $output_image_width, $xpos, $init_value + $title_font_size);
+    $ypos += imagick_text($output_image, $draw, $price_formatted, 1, $output_image_width, $xpos, $ypos);
+
+    $output_image->setImageFormat('gif');
+    $output_image->setImageDelay($frame->getImageDelay());
+    $GIF->addImage($output_image);
 
     $first_iteration = false;
-
 }
 
-// $image->setImageBackgroundColor('red');
-// $image->transformImageColorspace(\Imagick::CHANNEL_BLUE);
-// $image->setImageAlphaChannel(9);
-// $image->mergeImageLayers(Imagick::LAYERMETHOD_FLATTEN);
-
-// $image->deconstructImages();
-// $Imagick->setImageCompressionQuality(10);
-$image->stripImage();
-
 /* Set format to png */
-$image->setImageFormat($output_image_type);
+$GIF->setImageFormat($output_image_type);
 
 /* Output */
-header( "Content-Type: image/{$image->getImageFormat()}" );
-echo $image->getImagesBlob();
+header( "Content-Type: image/{$GIF->getImageFormat()}" );
+echo $GIF->getImagesBlob();
 
 function imagick_text($image, $draw, $text, $max_lines, $max_width, $xpos, $ypos){
     $text = html_entity_decode($text);
