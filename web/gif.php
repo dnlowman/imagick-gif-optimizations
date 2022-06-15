@@ -59,7 +59,6 @@ $FONTS = array(
     'dejavu'=>'/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf'
     #'dejavu'=>'/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf'
 
-
 );
 
 $image_source_url = $_GET['image'];
@@ -157,17 +156,7 @@ elseif ($price){
 }
 
 $image = new Imagick();
-
-//$Imagick->setResourceLimit(imagick::RESOURCETYPE_MEMORY, 8192);
-//$Imagick->setResourceLimit(imagick::RESOURCETYPE_MAP, 256);
-//$Imagick->setResourceLimit(imagick::RESOURCETYPE_AREA, 1512);
-//$Imagick->setResourceLimit(imagick::RESOURCETYPE_FILE, 768);
-//$Imagick->setResourceLimit(imagick::RESOURCETYPE_DISK, 256);
-// $Imagick->setResourceLimit(6, 1024);
-
 $image->readImageBlob(file_get_contents($image_source_url));
-
-$image->coalesceImages();
 
 ///* Create a drawing object and set the font size */
 $font_file = @$FONTS[$font];
@@ -177,20 +166,13 @@ $draw->setFont($font_file);
 $draw->setTextEncoding('UTF-8');
 $draw->setTextAlignment(\Imagick::ALIGN_CENTER);
 
-$image->optimizeImageLayers();
-
 $output_image_width = floor($output_width*0.9);
-
 $output_image_title_height = floor($output_height*(1-$image_to_label_ratio));
 $output_image_title_height = min($output_image_title_height, 70*$image_rescale);
-
 $output_image_height = $output_height - $output_image_title_height; //$actual_height;
 
-$first_iteration = true;
-$x = 0;
-$y = 0;
-$metrics;
-$th;
+# Image transformation global variables
+$first_iteration = true; $x; $y; $metrics; $th;
 
 $GIF = new Imagick();
 
@@ -198,21 +180,36 @@ foreach ($image as $frame) {
 
     $frame->resizeImage($output_image_width, $output_image_height,  Imagick::FILTER_LANCZOS, $resize_shapness, true);
 
+    setTransformationVariables($frame);
+
+    $GIF->addImage(createOutputImage($frame));
+}
+
+/* Set format to the output image type */
+$GIF->setImageFormat($output_image_type);
+
+/* Output */
+header( "Content-Type: image/{$GIF->getImageFormat()}" );
+echo $GIF->getImagesBlob();
+
+function setTransformationVariables($frame) {
+
+    global $x, $y, $metrics, $th, $first_iteration, $output_width, $output_image_height, $draw, $title;
+
     if ($first_iteration) {
         $x = floor(($output_width - $frame->getImageWidth()) / 2);
         $y = floor(($output_image_height - $frame->getImageHeight()) / 2);
         $metrics = $frame->queryFontMetrics($draw, $title);
         $th = $metrics['textHeight'];
+        $first_iteration = false;
     }
-
-    $GIF->addImage(createOutputImage($output_width, $output_height, $output_padded_colour, $image, $x, $y, $output_image_height, $th, $draw,
-    $title_font_color, $title_font_size, $title, $output_image_width, $price_font_color, $price_font_size, $price_formatted, $frame));
-
-    $first_iteration = false;
 }
 
-function createOutputImage($output_width, $output_height, $output_padded_colour, $image, $x, $y, $output_image_height, $th, $draw,
-    $title_font_color, $title_font_size, $title, $output_image_width, $price_font_color, $price_font_size, $price_formatted, $frame){
+function createOutputImage($frame){
+
+    global $output_width, $output_height, $output_padded_colour, $image, $output_image_height, $draw,
+    $title_font_color, $title_font_size, $title, $output_image_width, $price_font_color, $price_font_size, $price_formatted,
+    $x, $y, $metrics, $th;
 
     $output_image = new Imagick();
     $output_image->newImage( $output_width, $output_height, new ImagickPixel(fix_hex_color($output_padded_colour)));
@@ -240,16 +237,8 @@ function createOutputImage($output_width, $output_height, $output_padded_colour,
     $output_image->setImageFormat('gif');
     $output_image->setImageDelay($frame->getImageDelay());
 
-
     return $output_image;
 }
-
-/* Set format to png */
-$GIF->setImageFormat($output_image_type);
-
-/* Output */
-header( "Content-Type: image/{$GIF->getImageFormat()}" );
-echo $GIF->getImagesBlob();
 
 function imagick_text($image, $draw, $text, $max_lines, $max_width, $xpos, $ypos){
     $text = html_entity_decode($text);
@@ -303,12 +292,4 @@ function fix_hex_color($hex){
     } else {
         return '#ffffff';
     }
-}
-
-function debug_to_console($data) {
-    $output = $data;
-    if (is_array($output))
-        $output = implode(',', $output);
-
-    echo "<script>console.log('Debug Objects: " . $output . "' );</script>";
 }
